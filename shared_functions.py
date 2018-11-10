@@ -9,7 +9,7 @@ def rmsle(y, y_pred):
     """
 
     assert len(y) == len(y_pred)
-    terms_to_sum = [(math.log(y_pred[i] + 1) - math.log(y.iloc[i] + 1)) ** 2.0 for i,pred in enumerate(y_pred)]
+    terms_to_sum = [(math.log(y_pred[i] + 1) - math.log(y[i] + 1)) ** 2.0 for i,pred in enumerate(y_pred)]
     return (sum(terms_to_sum) * (1.0/len(y))) ** 0.5
 
 def train_and_test(train_df,
@@ -32,13 +32,13 @@ def train_and_test(train_df,
 
     """
 
-    fit_model = model.fit(train_df[features], train_df[outcome_var])
+    fit_model = model.fit(train_df[features].fillna(0), train_df[outcome_var])
     dev_preds = fit_model.predict(dev_df[features])
     if outcome_var == 'LogSalePrice':
-        rmse = rmsle(np.exp(dev_df[outcome_var]), np.exp(dev_preds))
+        rmse = rmsle(np.exp(list(dev_df[outcome_var])), np.exp(dev_preds))
     else:
-        rmse = rmsle(dev_df[outcome_var], dev_preds)
-    return rmse
+        rmse = rmsle(list(dev_df[outcome_var]), dev_preds)
+    return rmse, fit_model
 
 def try_different_models(train_df,
                          dev_df,
@@ -71,17 +71,21 @@ def try_different_models(train_df,
             # of trying different combos
             # of features
             for feature_set in feature_sets:
-                rmse = train_and_test(train_df,
-                                      dev_df,
-                                      model,
-                                      outcome_var,
-                                      feature_set)
+                try:
+                    rmse, fit_model = train_and_test(train_df,
+                                          dev_df,
+                                          model,
+                                          outcome_var,
+                                          feature_set)
 
-                models_tried.append(model)
-                outcome_vars_tried.append(outcome_var)
-                features_tried.append(feature_set)
-                num_features_tried.append(len(feature_set))
-                rmses_tried.append(rmse)
+                    models_tried.append(fit_model)
+                    outcome_vars_tried.append(outcome_var)
+                    features_tried.append(feature_set)
+                    num_features_tried.append(len(feature_set))
+                    rmses_tried.append(rmse)
+                except Exception as e:
+                    print("Couldn't do {} because {}".format(feature_set,
+                                                             e))
 
     scores_df = pd.DataFrame(data={'Model': models_tried,
                                    'Outcome Var': outcome_vars_tried,

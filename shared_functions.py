@@ -2,6 +2,21 @@ import pandas as pd
 import math
 import numpy as np
 
+def train_and_test_cross_validated(cross_val_lists,
+                                   model,
+                                   outcome_var,
+                                   features):
+    all_rmsles = []
+    for dictionary in cross_val_lists:
+        rmse = train_and_test(dictionary['train_df'],
+                               dictionary['dev_df'],
+                               model,
+                               outcome_var,
+                               features)
+        all_rmsles.append(rmse)
+    return np.mean(all_rmsles)
+
+
 def rmsle(y, y_pred):
     """
     return root mean squared error for set of true labels
@@ -38,10 +53,9 @@ def train_and_test(train_df,
         rmse = rmsle(np.exp(list(dev_df[outcome_var])), np.exp(dev_preds))
     else:
         rmse = rmsle(list(dev_df[outcome_var]), dev_preds)
-    return rmse, fit_model
+    return rmse
 
-def try_different_models(train_df,
-                         dev_df,
+def try_different_models(cross_val_list,
                          models,
                          outcome_vars,
                          feature_sets):
@@ -56,8 +70,6 @@ def try_different_models(train_df,
     Returns:
     df: a dataframe of results for all models
 
-    TODO: rewrite to include cross-validation
-
     """
     models_tried = []
     outcome_vars_tried = []
@@ -71,21 +83,17 @@ def try_different_models(train_df,
             # of trying different combos
             # of features
             for feature_set in feature_sets:
-                try:
-                    rmse, fit_model = train_and_test(train_df,
-                                          dev_df,
-                                          model,
-                                          outcome_var,
-                                          feature_set)
 
-                    models_tried.append(fit_model)
-                    outcome_vars_tried.append(outcome_var)
-                    features_tried.append(feature_set)
-                    num_features_tried.append(len(feature_set))
-                    rmses_tried.append(rmse)
-                except Exception as e:
-                    print("Couldn't do {} because {}".format(feature_set,
-                                                             e))
+                rmse = train_and_test_cross_validated(cross_val_list,
+                                                      model,
+                                                      outcome_var,
+                                                      feature_set)
+
+                models_tried.append(model)
+                outcome_vars_tried.append(outcome_var)
+                features_tried.append(feature_set)
+                num_features_tried.append(len(feature_set))
+                rmses_tried.append(rmse)
 
     scores_df = pd.DataFrame(data={'Model': models_tried,
                                    'Outcome Var': outcome_vars_tried,

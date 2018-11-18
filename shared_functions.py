@@ -47,7 +47,7 @@ def train_and_test(train_df,
 
     """
 
-    fit_model = model.fit(train_df[features].fillna(0), train_df[outcome_var])
+    fit_model = model.fit(train_df[features], train_df[outcome_var])
     dev_preds = fit_model.predict(dev_df[features])
     if outcome_var == 'LogSalePrice':
         rmse = rmsle(np.exp(list(dev_df[outcome_var])), np.exp(dev_preds))

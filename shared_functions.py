@@ -4,17 +4,25 @@ import numpy as np
 
 def train_and_test_cross_validated(cross_val_lists,
                                    model,
+                                   param_set,
                                    outcome_var,
                                    features):
-    all_rmsles = []
+    all_test_rmsles = []
+    all_train_rmsles = []
+    all_fit_models = []
     for dictionary in cross_val_lists:
-        rmse = train_and_test(dictionary['train_df'],
-                               dictionary['dev_df'],
-                               model,
-                               outcome_var,
-                               features)
-        all_rmsles.append(rmse)
-    return np.mean(all_rmsles)
+        model_instance = model(**param_set)
+        (test_rmse,
+        train_rmse,
+        fit_model) = train_and_test(dictionary['train_df'],
+                                    dictionary['dev_df'],
+                                    model_instance,
+                                    outcome_var,
+                                    features)
+        all_test_rmsles.append(test_rmse)
+        all_train_rmsles.append(train_rmse)
+        all_fit_models.append(fit_model)
+    return np.mean(all_test_rmsles), np.mean(all_train_rmsles), all_fit_models
 
 
 def rmsle(y, y_pred):
@@ -43,20 +51,20 @@ def train_and_test(train_df,
     Returns:
     rmse: float, the rmse for the model on the dev set
 
-    TODO: rewrite to include cross-validation
-
     """
-
     fit_model = model.fit(train_df[features], train_df[outcome_var])
+    train_preds = fit_model.predict(train_df[features])
     dev_preds = fit_model.predict(dev_df[features])
     if outcome_var == 'LogSalePrice':
-        rmse = rmsle(np.exp(list(dev_df[outcome_var])), np.exp(dev_preds))
+        test_rmse = rmsle(np.exp(list(dev_df[outcome_var])), np.exp(dev_preds))
+        train_rmse = rmsle(np.exp(list(train_df[outcome_var])), np.exp(train_preds))
     else:
-        rmse = rmsle(list(dev_df[outcome_var]), dev_preds)
-    return rmse
+        test_rmse = rmsle(list(dev_df[outcome_var]), dev_preds)
+        train_rmse = rmsle(list(train_df[outcome_var]), train_preds)
+    return test_rmse, train_rmse, fit_model
 
 def try_different_models(cross_val_list,
-                         models,
+                         models_to_params_list,
                          outcome_vars,
                          feature_sets):
     """
@@ -72,32 +80,43 @@ def try_different_models(cross_val_list,
 
     """
     models_tried = []
+    params_tried = []
     outcome_vars_tried = []
     num_features_tried = []
     features_tried = []
-    rmses_tried = []
+    train_rmses_tried = []
+    test_rmses_tried = []
 
-    for model in models:
+    for model, param_sets in models_to_params_list.items():
         for outcome_var in outcome_vars:
-            # TODO: add another layer here
-            # of trying different combos
-            # of features
-            for feature_set in feature_sets:
+            for param_set in param_sets:
+                for feature_set in feature_sets:
 
-                rmse = train_and_test_cross_validated(cross_val_list,
-                                                      model,
-                                                      outcome_var,
-                                                      feature_set)
+                    try:
+                        (test_rmse,
+                        train_rmse,
+                        fit_models) = train_and_test_cross_validated(cross_val_list,
+                                                              model,
+                                                              param_set,
+                                                              outcome_var,
+                                                              feature_set)
 
-                models_tried.append(model)
-                outcome_vars_tried.append(outcome_var)
-                features_tried.append(feature_set)
-                num_features_tried.append(len(feature_set))
-                rmses_tried.append(rmse)
+                        models_tried.append(fit_models)
+                        params_tried.append(param_set)
+                        outcome_vars_tried.append(outcome_var)
+                        features_tried.append(feature_set)
+                        num_features_tried.append(len(feature_set))
+                        train_rmses_tried.append(train_rmse)
+                        test_rmses_tried.append(test_rmse)
+
+                    except:
+                        pass
 
     scores_df = pd.DataFrame(data={'Model': models_tried,
+                                   'Params': params_tried,
                                    'Outcome Var': outcome_vars_tried,
                                    'Features': features_tried,
                                    'Num Features': num_features_tried,
-                                   'Root MSE': rmses_tried})
+                                   'Train MSE': train_rmses_tried,
+                                   'Root MSE': test_rmses_tried})
     return scores_df

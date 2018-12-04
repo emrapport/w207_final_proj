@@ -1,6 +1,7 @@
 import pandas as pd
 import math
 import numpy as np
+import logging
 
 def train_and_test_cross_validated(cross_val_lists,
                                    model,
@@ -22,8 +23,45 @@ def train_and_test_cross_validated(cross_val_lists,
         all_test_rmsles.append(test_rmse)
         all_train_rmsles.append(train_rmse)
         all_fit_models.append(fit_model)
+    #logging.debug("All test RMSLES: {}".format(all_test_rmsles))
     return np.mean(all_test_rmsles), np.mean(all_train_rmsles), all_fit_models
 
+def predict_via_vote_cross_validated(cross_val_lists,
+                                     model_list,
+                                     features_list,
+                                     outcome_var):
+    all_test_rmsles = []
+
+    for dictionary in cross_val_lists:
+        new_df = predict_via_vote(model_list,
+                                  features_list,
+                                  dictionary['dev_df'])
+        # the ones are a hack to make it not error for train RMSLES
+        # since train doesn't matter in this voting world
+        test_rmsle = calculate_error([1],
+                                     [1],
+                                     new_df[outcome_var],
+                                     new_df['vote_by_avg'],
+                                     outcome_var)[0]
+        all_test_rmsles.append(test_rmsle)
+
+    #logging.debug("All test RMSLES: {}".format(all_test_rmsles))
+    return np.mean(all_test_rmsles)
+
+def predict_via_vote(model_list, feature_set_list, dev_df):
+
+    new_dev_df = dev_df.reset_index()
+
+    cols_to_avg = []
+    for i, model in enumerate(model_list):
+        cols_to_avg.append(i)
+        dev_preds = model.predict(new_dev_df[feature_set_list[i]])
+        new_dev_df[i] = dev_preds
+
+    new_dev_df['vote_by_avg'] = (sum([new_dev_df[i] for i in cols_to_avg])
+                                / len(cols_to_avg))
+    #logging.debug("new dev df vote by avg: {}".format(new_dev_df['vote_by_avg']))
+    return new_dev_df
 
 def rmsle(y, y_pred):
     """
@@ -55,13 +93,27 @@ def train_and_test(train_df,
     fit_model = model.fit(train_df[features], train_df[outcome_var])
     train_preds = fit_model.predict(train_df[features])
     dev_preds = fit_model.predict(dev_df[features])
-    if outcome_var == 'LogSalePrice':
-        test_rmse = rmsle(np.exp(list(dev_df[outcome_var])), np.exp(dev_preds))
-        train_rmse = rmsle(np.exp(list(train_df[outcome_var])), np.exp(train_preds))
-    else:
-        test_rmse = rmsle(list(dev_df[outcome_var]), dev_preds)
-        train_rmse = rmsle(list(train_df[outcome_var]), train_preds)
+
+    test_rmse, train_rmse = calculate_error(train_df[outcome_var],
+                                            train_preds,
+                                            dev_df[outcome_var],
+                                            dev_preds,
+                                            outcome_var)
+
     return test_rmse, train_rmse, fit_model
+
+def calculate_error(train_true,
+                    train_pred,
+                    test_true,
+                    test_pred,
+                    outcome_var):
+    if outcome_var == 'LogSalePrice':
+        test_rmse = rmsle(np.exp(list(test_true)), np.exp(test_pred))
+        train_rmse = rmsle(np.exp(list(train_true)), np.exp(train_pred))
+    else:
+        test_rmse = rmsle(list(test_true), test_pred)
+        train_rmse = rmsle(list(train_true), train_pred)
+    return test_rmse, train_rmse
 
 def try_different_models(cross_val_list,
                          models_to_params_list,
@@ -109,8 +161,8 @@ def try_different_models(cross_val_list,
                         train_rmses_tried.append(train_rmse)
                         test_rmses_tried.append(test_rmse)
 
-                    except:
-                        pass
+                    except Exception as e:
+                        logging.debug(e)
 
     scores_df = pd.DataFrame(data={'Model': models_tried,
                                    'Params': params_tried,

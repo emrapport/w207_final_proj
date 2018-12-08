@@ -13,7 +13,7 @@ def rmsle(y, y_pred):
     assert len(y) == len(y_pred)
     terms_to_sum = [(math.log(y_pred[i] + 1) - math.log(y[i] + 1)) ** 2.0 for i,pred in enumerate(y_pred)]
     return (sum(terms_to_sum) * (1.0/len(y))) ** 0.5
-    
+
 def calculate_error(train_true,
                     train_pred,
                     test_true,
@@ -26,6 +26,37 @@ def calculate_error(train_true,
         test_rmse = rmsle(list(test_true), test_pred)
         train_rmse = rmsle(list(train_true), train_pred)
     return test_rmse, train_rmse
+
+# ensemble_to_use should be a df row with the following og_columns
+# it's possible you could use it with a non-ensemble - i'm not actually sure
+# if it would need adjustments or not
+def retrain_on_all_data_and_get_final_preds(ensemble_to_use,
+                                            train_data,
+                                            test_data):
+    indiv_model_preds = []
+
+    for i, model in enumerate(ensemble_to_use['Models'].values[0]):
+        features_to_use = ensemble_to_use['Features'].values[0][i]
+        outcome_var_to_use = ensemble_to_use['Outcome_Vars'].values[0][i]
+
+        # fit the model on all training data this time
+        model.fit(train_data[features_to_use],
+                  train_data[outcome_var_to_use])
+
+        # re-predict on test data
+        init_preds = model.predict(test_data[features_to_use])
+        if outcome_var_to_use == 'LogSalePrice':
+            init_preds = np.exp(init_preds)
+
+        indiv_model_preds.append(init_preds)
+
+    # do the averaging
+    final_preds = []
+    for i in range(len(indiv_model_preds[0])):
+        final_preds.append(sum([preds_list[i] for preds_list in indiv_model_preds]) / 
+                           len(indiv_model_preds))
+
+    return final_preds
 
 def make_kaggle_submission(predictions, test_df, submission_name):
     ids = [int(id) for id in test_df['Id'].values]

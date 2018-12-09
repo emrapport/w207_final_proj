@@ -90,3 +90,45 @@ def plot_error_against_var(model, outcome_var, feature_set, plot_features, dev_d
     fig.suptitle(model)
     fig.subplots_adjust(hspace=0.5)
     plt.show()
+
+
+def create_error_correlation_table(model,
+                                   outcome_var,
+                                   feature_set,
+                                   dev_df):
+    
+    '''
+    finds correlation between absolute value of error
+    and each feature
+    '''
+    
+    final_data = {'col': feature_set}
+    dev_df = dev_df.reset_index()
+    
+    dev_preds = model.predict(dev_df[feature_set])
+
+    rmsles = []
+    for i in range(len(dev_preds)):
+        rmsles.append(testing.rmsle([dev_df[outcome_var][i]], [dev_preds[i]]))
+
+    plt.clf()
+    plt.hist(rmsles, bins=20)
+    plt.xlabel("RMSLE")
+    plt.ylabel("Number of Occurrences")
+    plt.show()
+
+    dev_df['linear_reg_errors'] = rmsles
+
+    corrs = []
+    for col in feature_set:
+        try:
+            cor = np.corrcoef(abs(dev_df['linear_reg_errors']), dev_df[col])[0,1]
+            corrs.append(cor)
+        except:
+            pass
+
+    final_data['correlation'] = corrs 
+    
+    corrs_df = pd.DataFrame(data=final_data)
+    corrs_df = corrs_df.dropna()
+    return corrs_df

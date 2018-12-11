@@ -9,6 +9,7 @@ def get_model_dicts_from_data_frame(input_df):
     for i, row in input_df.iterrows():
         model_dict = {}
         model_dict['model'] = row['Model'][0]
+        model_dict['models'] = row['Model']
         model_dict['features'] = row['Features']
         model_dict['outcome_var'] = row['Outcome Var']
         out_models.append(model_dict)

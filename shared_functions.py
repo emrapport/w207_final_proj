@@ -172,31 +172,3 @@ def try_different_models(cross_val_list,
                                    'Train MSE': train_rmses_tried,
                                    'Root MSE': test_rmses_tried})
     return scores_df
-
-def plot_error_against_var(model, outcome_var, feature_set, plot_features, dev_df):
-    
-    # Calculate predictions for each observation
-    pred_LR = pd.DataFrame(model.predict(dev_df[feature_set]), columns = ['pred'])
-    
-    # Calculate error for each observation
-    dev_df2 = pd.concat([dev_df.reset_index(drop=True), pred_LR], axis = 1)
-    dev_df2['error'] = dev_df2['pred'] - dev_df2[outcome_var]
-    
-    # Plot Errors:
-    col_count = 3
-    row_count = len(plot_features)//col_count + 1
-
-    fig, ax = plt.subplots(row_count, col_count, figsize = (20,10))
-
-    for counter, var in enumerate(plot_features): 
-        col_position = counter%col_count
-        row_position = counter//col_count
-
-        ax[row_position, col_position].scatter(dev_df2[var], dev_df2['error'])
-        ax[row_position, col_position].axhline(y=0)
-        ax[row_position, col_position].set_xlabel(var)
-        ax[row_position, col_position].set_ylabel('error')
-     
-    fig.suptitle(model)
-    fig.subplots_adjust(hspace=0.5)
-    plt.show()
